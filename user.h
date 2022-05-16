@@ -23,6 +23,10 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+int queue(int pid, int qnum);
+int setbjfp(int pid, int cratio, int aratio, int pratio);
+int setbjfs(int cratio, int aratio, int pratio);
+int printqinfo();
 
 // ulib.c
 int stat(const char*, struct stat*);
