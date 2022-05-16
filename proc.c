@@ -319,6 +319,58 @@ wait(void)
   }
 }
 
+
+int
+get_round_robin(int* last)
+{
+    struct proc* p;
+    int i;
+    for(i = *last; i < NPROC; i++) {
+
+        p = &ptable.proc[i];
+        if (p->state != RUNNABLE || (p->qnum != 1 && p->qnum != 0))
+            continue;
+        *last = i;
+        return p->pid;
+    }
+    *last = 0;
+    return -1;
+}
+
+int
+get_fcfs() {
+    struct proc *p;
+    int min_arrival = 10e8;
+    int pid = -1;
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+        if (p->state != RUNNABLE || p->qnum != 2)
+            continue;
+        if (p->arrival < min_arrival) {
+            pid = p->pid;
+            min_arrival = p->arrival;
+        }
+    }
+    return pid;
+}
+
+int
+get_bjf() {
+    struct proc *p;
+    int min_rank = 10e8;
+    int pid = -1;
+    int rank;
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+        if (p->state != RUNNABLE || p->qnum != 3)
+            continue;
+        rank = p->pratio * p->pratio + p->aratio * p->arrival + p->cratio * p->ecycles;
+        if (rank < min_rank) {
+            pid = p->pid;
+            min_rank = rank;
+        }
+    }
+    return pid;
+}
+
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
@@ -331,34 +383,55 @@ void
 scheduler(void)
 {
   struct proc *p;
+  struct proc *p2;
   struct cpu *c = mycpu();
   c->proc = 0;
-  
-  for(;;){
-    // Enable interrupts on this processor.
-    sti();
+  int pid;
+  int last = 0;
 
-    // Loop over process table looking for process to run.
-    acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
+  for(;;) {
+      // Enable interrupts on this processor.
+      sti();
 
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
+      // Loop over process table looking for process to run.
+      acquire(&ptable.lock);
+      pid = get_round_robin(&last);
+      if (pid == -1)
+          pid = get_fcfs();
+      if (pid == -1)
+          pid = get_bjf();
+      if (pid != -1) {
+          for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+              if (p->pid == pid)
+                  break;
+          }
+          for (p2 = ptable.proc; p2 < &ptable.proc[NPROC]; p2++) {
+              if (p2->pid == pid)
+                  p2->ecycles++;
+              else if (p2->state == RUNNABLE) {
+                  p2->wcycles++;
+                  if (p2->wcycles > 8000) {
+                      p2->wcycles = 0;
+                      p2->qnum = 1;
+                  }
+              }
 
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
+          }
+          // Switch to chosen process.  It is the process's job
+          // to release ptable.lock and then reacquire it
+          // before jumping back to us.
+          c->proc = p;
+          switchuvm(p);
+          p->state = RUNNING;
 
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
-    }
-    release(&ptable.lock);
+          swtch(&(c->scheduler), p->context);
+          switchkvm();
+
+          // Process is done running for now.
+          // It should have changed its p->state before coming back.
+          c->proc = 0;
+      }
+      release(&ptable.lock);
 
   }
 }
@@ -598,7 +671,6 @@ void printqinfo()
   };
   acquire(&ptable.lock);
   struct proc* p;
-  cprintf("% pid    name    state    queue    arrival   waited_cycles    executed_cycles  rank    arrival_ratio    priority_ratio    cycles_ratio\n");
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
     if (p->state != UNUSED) {
       cprintf("----------------------\n");
