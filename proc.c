@@ -588,5 +588,32 @@ int setbjfs(int cratio, int aratio, int pratio)
 
 void printqinfo()
 {
-    cprintf("sssss");
+  static char *states[] = {
+          [UNUSED]    "unused",
+          [EMBRYO]    "embryo",
+          [SLEEPING]  "sleep ",
+          [RUNNABLE]  "runnable",
+          [RUNNING]   "running",
+          [ZOMBIE]    "zombie"
+  };
+  acquire(&ptable.lock);
+  struct proc* p;
+  cprintf("% pid    name    state    queue    arrival   waited_cycles    executed_cycles  rank    arrival_ratio    priority_ratio    cycles_ratio\n");
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    if (p->state != UNUSED) {
+      cprintf("----------------------\n");
+      cprintf("PID: %d\n", p->pid);
+      cprintf("NAME: %s\n", p->name);
+      cprintf("STATE: %s\n", states[p->state]);
+      cprintf("QUEUE: %d\n", p->qnum);
+      cprintf("ARRIVAL: %d\n", p->arrival);
+      cprintf("WAITED CYCLES: %d\n", p->wcycles);
+      cprintf("EXECUTED CYCLES: %d\n", p->ecycles);
+      cprintf("PRIORITY_RATIO: %d\n", p->pratio);
+      cprintf("ARRIVAL RATIO: %d\n", p->aratio);
+      cprintf("CYCLES RATIO: %d\n", p->cratio);
+      cprintf("PRIORITY: %d\n", p->priority);
+    }
+  }
+  release(&ptable.lock);
 }

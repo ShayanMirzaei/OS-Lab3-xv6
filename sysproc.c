@@ -100,6 +100,8 @@ sys_queue(void)
     if(argint(1, &qnum) < 0)
         return -1;
 
+    if (qnum < 1 || qnum > 3)
+        return -1;
     return queue(pid, qnum);
 }
 
